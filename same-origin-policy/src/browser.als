@@ -1,68 +1,60 @@
 /**
-	* browser.als
-	* 	A model of a browser.
-	*/
+  *  browser.als
+  *    A model of a browser
+  */
 module browser
 
 open http
-open message
 
-/* Components */
-abstract sig Browser extends message/EndPoint {
-	frames : set Frame
-}{
-	owns = frames.dom
-}
-
-abstract sig Frame {
-	-- URL from which this frame originated
-	location : http/URL,
-	-- HTML tags associated with 
-	tags : set HTMLTag,
-	dom : DOM,
-	script : lone Script
-}{
-	some script implies script.context = location
+sig Document {
+  src: Url,  -- URL from which this document was originated
+  content: Resource -> Time,  -- the content of the document (i.e., DOM)
+  -- "document.domain" property, at any time it could match several hosts (if
+  -- for example is set to something like *.foo.com)
+  domain: Domain -> Time,
 }
 
-abstract sig Script extends message/EndPoint {
-	-- the context in which this script is executing
-	context : http/URL
-}{
-	-- every script must belong to some frame
-	some script.this
-	no owns
+sig Browser extends Client {
+  documents: Document -> Time,  -- documents that browser displays over time
+  cookies: Cookie -> Time,  -- cookies stored by the browser over time
 }
 
-abstract sig DOM extends message/Resource {}
-abstract sig HTMLTag {}
+/* HTTP request sent from a browser to a server */
 
-/* XMLHTTPReq message */
-// HTTPReq requests that are made by a script
-sig XMLHTTPReq in http/HTTPReq {
+sig BrowserHttpRequest extends HttpRequest {
+  doc: Document
 }{
-	from in Script
-}
-fact {
-	all r : HTTPReq | r.from in Script implies r in XMLHTTPReq
+  -- the request comes from a browser
+  from in Browser
+  -- the cookies being sent exist in the browser at the time of the request
+  sentCookies in from.cookies.start
+  -- every cookie sent must be scoped to the url of the request
+  matchingScope[sentCookies, url]
+
+  -- browser creates a new document to display the content of the response
+  documents.end = documents.start + from -> doc
+  -- the new document has the response as its contents
+  content.end = content.start ++ doc -> response
+  -- the new document has the host of the url as its domain
+  domain.end = domain.start ++ doc -> url.host
+  -- the document's source field is the url of the request
+  doc.src = url
+
+  -- new cookies are stored by the browser
+  cookies.end = cookies.start + from -> sentCookies
 }
 
-/* DOM API messages */
-abstract sig DomAPICall extends message/Msg {
-	frame : Frame	-- frame that contains the DOM
-}{
-	from in Script
-	to in Browser
-	frame in Browser.frames
+pred matchingScope[cookies: set Cookie, url: Url] {
+  all c: cookies | url.host in c.domains
 }
-sig ReadDOM extends DomAPICall {
-}{
-	no payload
-	return = frame.dom
-}
-sig WriteDOM extends DomAPICall {
-}{
-	payload in DOM
-	one payload
-	no return
+
+/* Commands */
+
+run {}
+
+// Can we have two documents with different src but the same "document.domain"
+// property at some point in time?
+check {
+  no disj d1, d2: Document | some t: Time |
+    d1.src not in d2.src and d1.domain.t = d2.domain.t
 }

@@ -1,24 +1,25 @@
 /**
-	* postMessage
-	* 	A model of the HTML5 PostMessage mechanism
-	* 		intended for cross-domain communication between scripts
-	*/
+  *  postMessage
+  *    A model of the HTML5 PostMessage mechanism intended for cross-domain
+  *    communication between scripts
+  */
 module postMessage
 
-open http
-open browser
+open script
 open sop
 
-sig PostMessage extends browser/DomAPICall {
-	message : Resource,
-	srcOrigin, targetOrigin : URL
+// Browser API function for cross-document messaging
+// used to send a message from one script to another
+sig PostMessage extends BrowserOp {
+  message: Resource,
+  srcOrigin, targetOrigin: Url
 }{
-	from + to in browser/Script
-	payload = message
+  from + to in Script
 }
 
 pred postMessageRule {
-  all m : PostMessage | sop/sameOrigin[m.targetOrigin, m.to.context]
+  -- the receiving frame of a PostMessage must belong to the same origin as targetOrigin
+  all m: PostMessage | sameOrigin[m.targetOrigin, m.to.context.src]
 }
 
 run {} for 3

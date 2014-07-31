@@ -1,83 +1,78 @@
 /**
-	* http.als
-	* 	A model of the Hypertext Transfer Protocol.
-	*/
+  *  http.als
+  *    A model of the Hypertext Transfer Protocol.
+  */
 module http
 
-open message
+open call[Endpoint]
 
+abstract sig Resource {}
+abstract sig Endpoint {}
 
-sig Protocol {}
-sig Host {} -- Hostname (e.g. www.example.com)
-sig Port {}
-sig Path {}
-abstract sig Method {}
+sig Protocol, Domain, Port, Path {}
 
--- a more detailed model could include the other request methods (like HEAD,
--- PUT, OPTIONS) but these are not relevant to the analysis.
-one sig GET, POST extends Method {}
-
-// Given an example URL "http://www.example.com/dir/page.html",
-// "http" is the protocol,
-// "www.example.com" is the host,
-// "/dir/path.html" is the path, and
-// the port is omitted.
-sig URL {
-	protocol : Protocol,
-	host : Host,
-	-- port and path are optional
-	port : lone Port,
-	path : lone Path
+sig Url {
+  protocol: Protocol,
+  host: Domain,
+  port: lone Port,
+  path: Path
 }
 
-// An origin is defined as a triple (protocol, host, port) where port is optional
-sig Origin {
-	protocol : Protocol,
-	host : Host,
-	port : lone Port
-}
+/* HTTP Requests */
 
-fun url2origin[u : URL] : Origin {
-	{o : Origin | o.host = u.host and o.protocol = u.protocol and o.port = u.port }
-}
-
-abstract sig Server extends message/EndPoint {	
-	urls : set URL,
-	resMap : urls -> lone message/Resource	-- maps each URL to at most one resource
+abstract sig HttpRequest extends Call {
+  -- request
+  url: Url,
+  sentCookies: set Cookie,
+  body: lone Resource,
+  -- response
+  receivedCookies: set Cookie,
+  response: lone Resource,
 }{
-	owns = resMap[urls]
-	
-	all resp : HTTPResp |
-		resp.from = this implies
-			let req = resp.inResponseTo | 
-				resp.payload = resMap[req.url]
+  from in Client
+  to in Dns.map[url.host]
+  all c: receivedCookies | url.host in c.domains
+  response = to.resources[url.path]
 }
 
-/* HTTP Messages */
-abstract sig HTTPReq extends message/Msg {
-	url : URL,
-	method : Method
-}{
-	to in Server
-	no return
-	no payload
+/* HTTP Components */
+abstract sig Client extends Endpoint {}
+abstract sig Server extends Endpoint { resources: Path -> lone Resource }
+
+fact ServerAssumption {
+  -- two servers mapped from the common domain on DNS must provide the same resources
+  all s1, s2: Server | 
+    (some Dns.map.s1 & Dns.map.s2) implies s1.resources = s2.resources
 }
 
-abstract sig HTTPResp extends message/Msg {
-	inResponseTo : HTTPReq
-}{
-	from in Server
-	one payload
-	payload in message/Resource
-	inResponseTo in prevs[this]
-	no return
+sig Cookie {
+  -- by default all cookies are scoped to the host. The cookie domain and path
+  -- field could be used to broaden (thus adding more hosts) or limit the scope
+  -- of the cookie.
+  domains: set Domain,
 }
 
-fact {
-  -- no request goes unanswered and there's only one response per request
-  all req : HTTPReq | one resp : HTTPResp | req in resp.inResponseTo
-  -- response goes to whoever sent the request
-  all resp : HTTPResp | 
-	resp.to = resp.inResponseTo.from and
-	resp.from = resp.inResponseTo.to
+/* Domain Name Server */
+one sig Dns {
+  map: Domain -> Server
 }
+
+/* Commands */
+
+// A simple request
+run {} for 3 
+
+// Let's force responses to set cookies
+run { all r: HttpRequest | some r.receivedCookies } for 3 
+
+// Can we get a request for a path that's not mapped by the server?
+check { all r: HttpRequest | r.url.path in r.to.resources.Resource } for 3 
+
+// Can we get the same domain mapping to multiple servers?
+check { all d: Domain | no disj s1, s2: Server | s1 + s2 in Dns.map[d] } for 3 
+
+// If we do the same request twice, can we get a different response?
+check { 
+  all r1, r2: HttpRequest | r1.url = r2.url implies r1.response = r2.response
+} for 3 
+
