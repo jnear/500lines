@@ -25,6 +25,36 @@ To construct this model, we use _Alloy_, a language for modeling and analyzing s
 
 Despite above similarities, agile modeling differs from agile programming in one key respect. Although we'll be running tests, we actually won't be writing any. Alloy's analyzer generates test cases automatically, and all that needs to be provided is the property to be checked. Needless to say, this saves a lot of trouble (and text). The analyzer actually executes all possible test cases up to a certain size (called a _scope_); this typically means generating all starting states with at most some number of objects, and then choosing operations and arguments to apply up to some number of steps. Because so many tests are executed (typically billions), and because all possible configurations that a state can take are covered (albeit within the scope), this analysis tends to expose bugs more effectively than conventional testing.
 
+## Why is the SOP Necessary?
+
+Imagine that you've logged into your bank account in one tab, and click on a malicious link in another. Absent the SOP, a script loaded by the malicious page could examine your browser's DOM, read all of your banking information, and report it to the attacker. Or, in Alloy:
+
+```alloy
+one sig Bank, Attacker extends URL {}
+
+some bankRequest, maliciousRequest: BrowserHttpRequest,
+     maliciousRead: ReadDom {
+  bankRequest.url = Bank
+  maliciousRequest.url = Attacker
+  maliciousRead.from.context.doc = maliciousRequest.doc
+  maliciousRead.result in bankRequest.response
+}
+```
+
+This says that:
+
+1. There are two URLs, one for your bank and one for the attacker's site.
+2. You make two requests, one to your bank and one to the attacker.
+2. The bank request is to the bank's URL, and the malicious one is to a URL controlled by the attacker.
+3. A malicious read from the DOM takes place, originating from the malicious request.
+4. The malicious read is able to obtain information from the response from the bank.
+
+"Running" this formula asks Alloy to find a situation allowed by the model that also satisfies these constraints --- in other words, we're asking Alloy to discover an attack. It responds with the following solution:
+
+![script-instance-2](fig-script-2.png)
+
+This diagram, which Alloy produces automatically, shows how a malicious URL can obtain your banking information by loading a script which reads the DOM of your bank's page. Blah blah explain the example.
+
 ## Simplifications
 
 Because the SOP operates in the context of browsers, servers, the HTTP protocol, and so on, a complete description would be overwhelming. So our model (like all models) abstracts away irrelevant aspects, such as how network packets are structured and routed. But it also simplifies some relevant aspects, which means that the model cannot fully account for all possible security vulnerabilities.
