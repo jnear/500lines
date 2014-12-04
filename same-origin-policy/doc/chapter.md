@@ -39,52 +39,6 @@ all of the questions above?
 
 ## Modeling with Alloy
 
-This chapter is somewhat different from others in this book. Instead of building a working implementation, we will construct an executable _model_ that serves as a simple yet precise description of the SOP. Like an implementation, the model can be executed to explore dynamic behaviors of the system; but unlike an implementation, the model omits low-level details that may get in the way of understanding the essential concepts.
-
-The approach we take might be called “agile modeling” because of its similarities to agile programming. We work incrementally, assembling the model bit by bit. Our evolving model is at every point something that can be executed. We formulate and run tests as we go, so that by the end we have not only the model itself but also a collection of _properties_ that it satisfies. 
-
-To construct this model, we use _Alloy_, a language for modeling and analyzing software design. An Alloy model cannot be executed in the traditional sense of program execution. Instead, a model can be (1) _simulated_ to produce an _instance_, which represents a valid scenario or configuration of a system, and (2) _checked_ to see whether the model satisfies a desired property.
-
-Despite above similarities, agile modeling differs from agile programming in one key respect. Although we'll be running tests, we actually won't be writing any. Alloy's analyzer generates test cases automatically, and all that needs to be provided is the property to be checked. Needless to say, this saves a lot of trouble (and text). The analyzer actually executes all possible test cases up to a certain size (called a _scope_); this typically means generating all starting states with at most some number of objects, and then choosing operations and arguments to apply up to some number of steps. Because so many tests are executed (typically billions), and because all possible configurations that a state can take are covered (albeit within the scope), this analysis tends to expose bugs more effectively than conventional testing.
-
-## Why is the SOP Necessary?
-
-Imagine that you've logged into your bank account in one tab, and click on a malicious link in another. Absent the SOP, a script loaded by the malicious page could examine your browser's DOM, read all of your banking information, and report it to the attacker. Or, in Alloy:
-
-```alloy
-one sig Bank, Attacker extends URL {}
-
-some bankRequest, maliciousRequest: BrowserHttpRequest,
-     maliciousRead: ReadDom {
-  bankRequest.url = Bank
-  maliciousRequest.url = Attacker
-  maliciousRead.from.context.doc = maliciousRequest.doc
-  maliciousRead.result in bankRequest.response
-}
-```
-
-This says that:
-
-1. There are two URLs, one for your bank and one for the attacker's site.
-2. You make two requests, one to your bank and one to the attacker.
-2. The bank request is to the bank's URL, and the malicious one is to a URL controlled by the attacker.
-3. A malicious read from the DOM takes place, originating from the malicious request.
-4. The malicious read is able to obtain information from the response from the bank.
-
-"Running" this formula asks Alloy to find a situation allowed by the model that also satisfies these constraints --- in other words, we're asking Alloy to discover an attack. It responds with the following solution:
-
-![script-instance-2](fig-script-2.png)
-
-This diagram, which Alloy produces automatically, shows how a malicious URL can obtain your banking information by loading a script which reads the DOM of your bank's page. Blah blah explain the example.
-
-## Simplifications
-
-Because the SOP operates in the context of browsers, servers, the HTTP protocol, and so on, a complete description would be overwhelming. So our model (like all models) abstracts away irrelevant aspects, such as how network packets are structured and routed. But it also simplifies some relevant aspects, which means that the model cannot fully account for all possible security vulnerabilities.
-
-For example, we treat HTTP requests like remote procedure calls, ignoring the fact that responses to requests might come out of order. We also assume that DNS (the domain name service) is static, so we cannot consider attacks in which a DNS binding changes during an interaction. In principle, though, it would be possible to extend our model to cover all these aspects, although it's in the very nature of security analysis that no model (even if it represents the entire codebase) can be guaranteed complete.
-
-## HTTP Protocol
-=======
 This chapter is somewhat different from others in this book. Instead
 of building a working implementation, we will construct an executable
 _model_ that serves as a simple yet precise description of the
@@ -150,7 +104,6 @@ Feel free to explore the sections in any order you'd like, although if you are n
 ## Model of the Web
 
 ### HTTP Protocol
->>>>>>> 76f1b08eaa667ecfec05bc1fe09d98a7f380cf49
 
 The first step in building an Alloy model is to declare some sets of objects. Let's start with resources:
 
