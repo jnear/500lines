@@ -4,34 +4,39 @@
   */
 module sop
 
-open http
-open browser
-open script
 open cors
+open origin
+open setDomain
 
-
-// True iff the two URLs match in terms of host, protocol, and port
-pred sameOrigin[u1, u2: Url] {
-  u1.host = u2.host and u1.protocol = u2.protocol and u1.port = u2.port
-}
-
-pred sameOriginPolicy {
-	-- same origin policy actually has multiple parts
+fact sameOriginPolicy {
+  -- same origin policy actually has multiple parts
   domSop
   xmlHttpReqSop
 }
 
 pred domSop {
-	all c: ReadDom+ WriteDom | 
-		-- A script can only access the DOM of a document with the same origin or
-		sameOrigin[c.doc.src, c.from.context.src] or
-		-- (relaxation) script's context and the target document have the same domain property
-		c.doc.domain = c.from.context.domain
+  all c: ReadDom + WriteDom | 
+    -- A script can only access the DOM of a document with the same origin or
+    origin[c.doc.src] = origin[c.from.context.src] or
+    -- (relaxation) the domain property of both the script's context and the
+    -- target document has been set and
+    (c.doc + c.from.context in (c.prevs <: SetDomain).doc and
+    -- they have the same origin (using the domain property as the host and not
+    -- the src host)
+    origin[c.doc.src, c.doc.domain.(c.start)] =
+    origin[c.from.context.src, c.from.context.domain.(c.start)])
 }
 
 pred xmlHttpReqSop {
-  -- A script can only make an AJAX call to a server with the same origin if
-  -- it's not a CORS request (relaxation).
   all x: XmlHttpRequest |
-    sameOrigin[x.url, x.from.context.src] or x in CorsRequest
+    -- A script can only make an AJAX call to a server with the same origin or
+    origin[x.url] = origin[x.from.context.src] or
+    -- (relaxation) it's a CORS request
+    x in CorsRequest
 }
+
+
+/* Commands */
+
+// Can a script read or write the DOM of a document with another origin?
+run { some c: ReadDom + WriteDom | origin[c.doc.src] != origin[c.from.context.src] }

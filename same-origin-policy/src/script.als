@@ -6,20 +6,29 @@ module script
 
 open browser
 
-
 // A script can issue requests through the XmlHttpRequest object
 // In reality though, these requests are issued by the browser on behalf
 // of the script but that's fine.
-sig Script extends Client { context: Document }
+abstract sig Script extends Client { context: Document }
 
-/* Calls initiated by scripts*/
+fact Wellformedness {
+  -- no two scripts share the same document as their context
+  no disj s1, s2: Script | s1.context = s2.context
+}
+
+/* Calls initiated by a script */
+
+-- browser that script "s" is running in at time "t"
+fun browser[s : Script, t : Time] : Browser {
+	(documents.t).(s.context)
+}
 
 // HTTP requests sent by a script
 sig XmlHttpRequest extends HttpRequest {}{
   from in Script
   -- browser that contains this script
-  let browser = (documents.start).(from.context) | 
-    sentCookies in browser.cookies.start and
+  let b = from.browser[start] | 
+    sentCookies in b.cookies.start and
     -- every cookie sent must be scoped to the url of the request
     matchingScope[sentCookies, url]
   noBrowserChange[start, end] and noDocumentChange[start, end]
@@ -49,12 +58,17 @@ sig WriteDom extends BrowserOp { newDom: Resource }{
   domain.end = domain.start
 }
 
-// Modify the document.domain property
-sig SetDomain extends BrowserOp { newDomain: set Domain }{
-  doc = from.context
-  domain.end = domain.start ++ doc -> newDomain
-  -- no change to the content of the document
-  content.end = content.start
+// Handlers for browser script events
+abstract sig EventHandler extends Call {
+  causedBy: Call
+}{
+  -- this call must happen after the call that caused it
+  lt[causedBy.@start, start]
+  from in Browser and to in Script
+  from in causedBy.@to + causedBy.@from
+  to.context in from.documents.start
+  noDocumentChange[start, end]
+  noBrowserChange[start, end]
 }
 
 pred noBrowserChange[start, end: Time] {
@@ -64,9 +78,3 @@ pred noBrowserChange[start, end: Time] {
 pred noDocumentChange[start, end: Time] {
   content.end = content.start and domain.end = domain.start
 }
-
-/* Commands */
-
-// Can a script set the "document.domain" property with a new_domain that doesn't
-// match the src?
-check { all sd: SetDomain | sd.doc.src.host in sd.newDomain }

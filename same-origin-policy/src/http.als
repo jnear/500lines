@@ -5,11 +5,15 @@
 module http
 
 open call[Endpoint]
+open util/relation
 
 abstract sig Resource {}
 abstract sig Endpoint {}
 
-sig Protocol, Domain, Port, Path {}
+abstract sig Protocol, Port, Path {}
+sig Domain { subsumes: set Domain }
+
+fact subsumesRule { partialOrder[subsumes, Domain] }
 
 sig Url {
   protocol: Protocol,
@@ -36,6 +40,7 @@ abstract sig HttpRequest extends Call {
 }
 
 /* HTTP Components */
+
 abstract sig Client extends Endpoint {}
 abstract sig Server extends Endpoint { resources: Path -> lone Resource }
 
@@ -53,6 +58,7 @@ sig Cookie {
 }
 
 /* Domain Name Server */
+
 one sig Dns {
   map: Domain -> Server
 }
@@ -75,4 +81,3 @@ check { all d: Domain | no disj s1, s2: Server | s1 + s2 in Dns.map[d] } for 3
 check { 
   all r1, r2: HttpRequest | r1.url = r2.url implies r1.response = r2.response
 } for 3 
-

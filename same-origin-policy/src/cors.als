@@ -5,12 +5,10 @@
   */
 module cors
 
-open browser
-open http
 open script
 open origin
 
-sig CorsRequest in http/HttpRequest {
+sig CorsRequest in XmlHttpRequest {
   -- "origin" header
   origin: Origin,
   -- "access-control-allow-origin" header
@@ -19,14 +17,12 @@ sig CorsRequest in http/HttpRequest {
   from in Script
 }
 
--- in some cases requests are pre-flighted, but we leave this out of the model
-
-pred corsRule {
-  -- "origin" header of every CORS req matches the script context
+fact corsRule {
   all r: CorsRequest |
-    r.origin = url2origin[r.from.context.src] and
-    -- A CORS response is accepted iff it is allowed by the server, as
-   -- indicated in "access-control-allow-origin" header
+    -- "origin" header of every CORS request matches the script context and
+    r.origin = origin[r.from.context.src] and
+    -- a CORS request is accepted iff it is allowed by the server, as indicated
+    -- in "access-control-allow-origin" header
     r.origin in r.allowedOrigins
 }
 
