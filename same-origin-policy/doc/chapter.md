@@ -244,7 +244,7 @@ Let's introduce browsers:
 ```alloy
 sig Browser extends Client {
   documents: Document -> Time,
-  cookies: Cookie -> Time,
+  cookies: Cookie -> Time
 }
 ```
 
